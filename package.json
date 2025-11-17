@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-jwt-validate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "n8n node for JWT token validation with JWKS support",
   "license": "MIT",
   "homepage": "https://github.com/wtyeung/n8n-nodes-jwt-validate#readme",
@@ -12,7 +12,10 @@
     "authentication",
     "security"
   ],
-  "author": { "name": "Tim Yeung", "email": "tim.yeung@hku.hk" },
+  "author": {
+    "name": "Tim Yeung",
+    "email": "tim.yeung@hku.hk"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/wtyeung/n8n-nodes-jwt-validate.git"
@@ -26,7 +29,9 @@
     "release": "n8n-node release",
     "prepublishOnly": "n8n-node prerelease"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [],
@@ -44,6 +49,11 @@
     "release-it": "^19.0.4",
     "typescript": "5.9.2"
   },
-  "dependencies": { "jsonwebtoken": "^9.0.2", "jwks-rsa": "^3.1.0" },
-  "peerDependencies": { "n8n-workflow": "*" }
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.1.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
 }
