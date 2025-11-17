@@ -36,7 +36,6 @@
         "n8nNodesApiVersion": 1,
         "credentials": [],
         "nodes": [
-            "dist/nodes/Example/Example.node.js",
             "dist/nodes/JwtValidate/JwtValidate.node.js"
         ],
         "strict": false
