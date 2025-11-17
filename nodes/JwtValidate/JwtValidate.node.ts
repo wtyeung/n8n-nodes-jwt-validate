@@ -27,6 +27,7 @@ export class JwtValidate implements INodeType {
 				displayName: 'JWT Token',
 				name: 'jwtToken',
 				type: 'string',
+				typeOptions: { password: true },
 				default: '',
 				required: true,
 				placeholder: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...',
@@ -38,7 +39,7 @@ export class JwtValidate implements INodeType {
 				type: 'options',
 				options: [
 					{
-						name: 'Auto-Discover from Issuer',
+						name: 'Auto-Discover From Issuer',
 						value: 'autoDiscover',
 					},
 					{
@@ -70,12 +71,11 @@ export class JwtValidate implements INodeType {
 				default: {},
 				options: [
 					{
-						displayName: 'Required Issuer',
-						name: 'issuer',
-						type: 'string',
-						default: '',
-						placeholder: 'https://example.com',
-						description: 'Expected issuer (iss) claim in the JWT. If not set, issuer validation is skipped.',
+						displayName: 'Check Expiry',
+						name: 'checkExpiry',
+						type: 'boolean',
+						default: true,
+						description: 'Whether to validate the expiration date (exp claim) of the token',
 					},
 					{
 						displayName: 'Required Audience',
@@ -86,11 +86,12 @@ export class JwtValidate implements INodeType {
 						description: 'Expected audience (aud) claim in the JWT. If not set, audience validation is skipped.',
 					},
 					{
-						displayName: 'Check Expiry',
-						name: 'checkExpiry',
-						type: 'boolean',
-						default: true,
-						description: 'Whether to validate the expiration date (exp claim) of the token',
+						displayName: 'Required Issuer',
+						name: 'issuer',
+						type: 'string',
+						default: '',
+						placeholder: 'https://example.com',
+						description: 'Expected issuer (iss) claim in the JWT. If not set, issuer validation is skipped.',
 					},
 					{
 						displayName: 'Required Scopes',
@@ -136,16 +137,22 @@ export class JwtValidate implements INodeType {
 				const scopeClaimName = options.scopeClaimName || 'scope';
 
 				// Decode token without verification to get header and payload
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				let decoded: any;
 				try {
 					decoded = jwt.decode(jwtToken, { complete: true });
 					if (!decoded) {
-						throw new Error('Invalid JWT token format');
+						throw new NodeOperationError(
+							this.getNode(),
+							'Invalid JWT token format',
+							{ itemIndex },
+						);
 					}
-				} catch (error) {
+				} catch (error: unknown) {
+					const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 					throw new NodeOperationError(
 						this.getNode(),
-						`Failed to decode JWT token: ${error.message}`,
+						`Failed to decode JWT token: ${errorMessage}`,
 						{ itemIndex },
 					);
 				}
@@ -217,20 +224,24 @@ export class JwtValidate implements INodeType {
 					verifyOptions.audience = audience;
 				}
 
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				let verifiedPayload: any;
 				try {
 					verifiedPayload = jwt.verify(jwtToken, signingKey, verifyOptions);
-				} catch (error) {
+				} catch (error: unknown) {
 					let errorMessage = 'JWT validation failed';
-					
-					if (error.name === 'TokenExpiredError') {
-						errorMessage = `JWT token has expired at ${error.expiredAt}`;
-					} else if (error.name === 'JsonWebTokenError') {
-						errorMessage = `JWT validation error: ${error.message}`;
-					} else if (error.name === 'NotBeforeError') {
-						errorMessage = `JWT token is not yet valid (nbf claim)`;
-					} else {
-						errorMessage = `JWT validation failed: ${error.message}`;
+				
+					if (error instanceof Error) {
+						if (error.name === 'TokenExpiredError') {
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
+							errorMessage = `JWT token has expired at ${(error as any).expiredAt}`;
+						} else if (error.name === 'JsonWebTokenError') {
+							errorMessage = `JWT validation error: ${error.message}`;
+						} else if (error.name === 'NotBeforeError') {
+							errorMessage = `JWT token is not yet valid (nbf claim)`;
+						} else {
+							errorMessage = `JWT validation failed: ${error.message}`;
+						}
 					}
 
 					throw new NodeOperationError(this.getNode(), errorMessage, { itemIndex });

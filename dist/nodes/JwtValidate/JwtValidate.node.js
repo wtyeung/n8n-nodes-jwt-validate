@@ -60,6 +60,7 @@ class JwtValidate {
                     displayName: 'JWT Token',
                     name: 'jwtToken',
                     type: 'string',
+                    typeOptions: { password: true },
                     default: '',
                     required: true,
                     placeholder: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...',
@@ -71,7 +72,7 @@ class JwtValidate {
                     type: 'options',
                     options: [
                         {
-                            name: 'Auto-Discover from Issuer',
+                            name: 'Auto-Discover From Issuer',
                             value: 'autoDiscover',
                         },
                         {
@@ -103,12 +104,11 @@ class JwtValidate {
                     default: {},
                     options: [
                         {
-                            displayName: 'Required Issuer',
-                            name: 'issuer',
-                            type: 'string',
-                            default: '',
-                            placeholder: 'https://example.com',
-                            description: 'Expected issuer (iss) claim in the JWT. If not set, issuer validation is skipped.',
+                            displayName: 'Check Expiry',
+                            name: 'checkExpiry',
+                            type: 'boolean',
+                            default: true,
+                            description: 'Whether to validate the expiration date (exp claim) of the token',
                         },
                         {
                             displayName: 'Required Audience',
@@ -119,11 +119,12 @@ class JwtValidate {
                             description: 'Expected audience (aud) claim in the JWT. If not set, audience validation is skipped.',
                         },
                         {
-                            displayName: 'Check Expiry',
-                            name: 'checkExpiry',
-                            type: 'boolean',
-                            default: true,
-                            description: 'Whether to validate the expiration date (exp claim) of the token',
+                            displayName: 'Required Issuer',
+                            name: 'issuer',
+                            type: 'string',
+                            default: '',
+                            placeholder: 'https://example.com',
+                            description: 'Expected issuer (iss) claim in the JWT. If not set, issuer validation is skipped.',
                         },
                         {
                             displayName: 'Required Scopes',
@@ -162,11 +163,12 @@ class JwtValidate {
                 try {
                     decoded = jwt.decode(jwtToken, { complete: true });
                     if (!decoded) {
-                        throw new Error('Invalid JWT token format');
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid JWT token format', { itemIndex });
                     }
                 }
                 catch (error) {
-                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Failed to decode JWT token: ${error.message}`, { itemIndex });
+                    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Failed to decode JWT token: ${errorMessage}`, { itemIndex });
                 }
                 let jwksUrl;
                 if (jwksConfig === 'customUrl') {
@@ -214,17 +216,19 @@ class JwtValidate {
                 }
                 catch (error) {
                     let errorMessage = 'JWT validation failed';
-                    if (error.name === 'TokenExpiredError') {
-                        errorMessage = `JWT token has expired at ${error.expiredAt}`;
-                    }
-                    else if (error.name === 'JsonWebTokenError') {
-                        errorMessage = `JWT validation error: ${error.message}`;
-                    }
-                    else if (error.name === 'NotBeforeError') {
-                        errorMessage = `JWT token is not yet valid (nbf claim)`;
-                    }
-                    else {
-                        errorMessage = `JWT validation failed: ${error.message}`;
+                    if (error instanceof Error) {
+                        if (error.name === 'TokenExpiredError') {
+                            errorMessage = `JWT token has expired at ${error.expiredAt}`;
+                        }
+                        else if (error.name === 'JsonWebTokenError') {
+                            errorMessage = `JWT validation error: ${error.message}`;
+                        }
+                        else if (error.name === 'NotBeforeError') {
+                            errorMessage = `JWT token is not yet valid (nbf claim)`;
+                        }
+                        else {
+                            errorMessage = `JWT validation failed: ${error.message}`;
+                        }
                     }
                     throw new n8n_workflow_1.NodeOperationError(this.getNode(), errorMessage, { itemIndex });
                 }
