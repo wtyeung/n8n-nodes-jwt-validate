@@ -4,7 +4,7 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { ApplicationError, NodeOperationError } from 'n8n-workflow';
 import * as jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 
@@ -182,14 +182,14 @@ export class JwtValidate implements INodeType {
 					// Fetch OpenID Connect Discovery document
 					const discoveryUrl = `${tokenIssuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
 					try {
-						const response = await this.helpers.request({
+						const response = await this.helpers.httpRequest({
 							method: 'GET',
-							uri: discoveryUrl,
+							url: discoveryUrl,
 							json: true,
 						});
 
 						if (!response.jwks_uri) {
-							throw new Error('Discovery document does not contain jwks_uri');
+							throw new ApplicationError('Discovery document does not contain jwks_uri');
 						}
 
 						jwksUrl = response.jwks_uri;

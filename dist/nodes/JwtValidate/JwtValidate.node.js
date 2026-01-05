@@ -185,13 +185,13 @@ class JwtValidate {
                     }
                     const discoveryUrl = `${tokenIssuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
                     try {
-                        const response = await this.helpers.request({
+                        const response = await this.helpers.httpRequest({
                             method: 'GET',
-                            uri: discoveryUrl,
+                            url: discoveryUrl,
                             json: true,
                         });
                         if (!response.jwks_uri) {
-                            throw new Error('Discovery document does not contain jwks_uri');
+                            throw new n8n_workflow_1.ApplicationError('Discovery document does not contain jwks_uri');
                         }
                         jwksUrl = response.jwks_uri;
                     }
