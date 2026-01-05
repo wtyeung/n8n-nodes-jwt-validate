@@ -57,6 +57,25 @@ class JwtValidate {
             usableAsTool: true,
             properties: [
                 {
+                    displayName: 'Operation',
+                    name: 'operation',
+                    type: 'options',
+                    options: [
+                        {
+                            name: 'Validate',
+                            value: 'validate',
+                            description: 'Validate JWT signature and claims using JWKS',
+                        },
+                        {
+                            name: 'Decode Only',
+                            value: 'decode',
+                            description: 'Decode JWT without validation (no signature verification)',
+                        },
+                    ],
+                    default: 'validate',
+                    description: 'Whether to validate the JWT or just decode it',
+                },
+                {
                     displayName: 'JWT Token',
                     name: 'jwtToken',
                     type: 'string',
@@ -64,12 +83,17 @@ class JwtValidate {
                     default: '',
                     required: true,
                     placeholder: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...',
-                    description: 'The JWT token to validate',
+                    description: 'The JWT token to validate or decode',
                 },
                 {
                     displayName: 'JWKS Configuration',
                     name: 'jwksConfig',
                     type: 'options',
+                    displayOptions: {
+                        show: {
+                            operation: ['validate'],
+                        },
+                    },
                     options: [
                         {
                             name: 'Auto-Discover From Issuer',
@@ -90,6 +114,7 @@ class JwtValidate {
                     default: '',
                     displayOptions: {
                         show: {
+                            operation: ['validate'],
                             jwksConfig: ['customUrl'],
                         },
                     },
@@ -102,6 +127,11 @@ class JwtValidate {
                     type: 'collection',
                     placeholder: 'Add option',
                     default: {},
+                    displayOptions: {
+                        show: {
+                            operation: ['validate'],
+                        },
+                    },
                     options: [
                         {
                             displayName: 'Check Expiry',
@@ -152,7 +182,31 @@ class JwtValidate {
         const returnData = [];
         for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
             try {
+                const operation = this.getNodeParameter('operation', itemIndex);
                 const jwtToken = this.getNodeParameter('jwtToken', itemIndex);
+                if (operation === 'decode') {
+                    let decoded;
+                    try {
+                        decoded = jwt.decode(jwtToken, { complete: true });
+                        if (!decoded) {
+                            throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'Invalid JWT token format', { itemIndex });
+                        }
+                    }
+                    catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Failed to decode JWT token: ${errorMessage}`, { itemIndex });
+                    }
+                    const item = items[itemIndex];
+                    returnData.push({
+                        json: {
+                            ...item.json,
+                            jwtHeader: decoded.header,
+                            jwtPayload: decoded.payload,
+                        },
+                        pairedItem: itemIndex,
+                    });
+                    continue;
+                }
                 const jwksConfig = this.getNodeParameter('jwksConfig', itemIndex);
                 const options = this.getNodeParameter('options', itemIndex, {});
                 const issuer = options.issuer || '';

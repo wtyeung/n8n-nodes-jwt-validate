@@ -24,6 +24,25 @@ export class JwtValidate implements INodeType {
 		usableAsTool: true,
 		properties: [
 			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				options: [
+					{
+						name: 'Validate',
+						value: 'validate',
+						description: 'Validate JWT signature and claims using JWKS',
+					},
+					{
+						name: 'Decode Only',
+						value: 'decode',
+						description: 'Decode JWT without validation (no signature verification)',
+					},
+				],
+				default: 'validate',
+				description: 'Whether to validate the JWT or just decode it',
+			},
+			{
 				displayName: 'JWT Token',
 				name: 'jwtToken',
 				type: 'string',
@@ -31,12 +50,17 @@ export class JwtValidate implements INodeType {
 				default: '',
 				required: true,
 				placeholder: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...',
-				description: 'The JWT token to validate',
+				description: 'The JWT token to validate or decode',
 			},
 			{
 				displayName: 'JWKS Configuration',
 				name: 'jwksConfig',
 				type: 'options',
+				displayOptions: {
+					show: {
+						operation: ['validate'],
+					},
+				},
 				options: [
 					{
 						name: 'Auto-Discover From Issuer',
@@ -57,6 +81,7 @@ export class JwtValidate implements INodeType {
 				default: '',
 				displayOptions: {
 					show: {
+						operation: ['validate'],
 						jwksConfig: ['customUrl'],
 					},
 				},
@@ -69,6 +94,11 @@ export class JwtValidate implements INodeType {
 				type: 'collection',
 				placeholder: 'Add option',
 				default: {},
+				displayOptions: {
+					show: {
+						operation: ['validate'],
+					},
+				},
 				options: [
 					{
 						displayName: 'Check Expiry',
@@ -119,7 +149,45 @@ export class JwtValidate implements INodeType {
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
+				const operation = this.getNodeParameter('operation', itemIndex) as string;
 				const jwtToken = this.getNodeParameter('jwtToken', itemIndex) as string;
+
+				// Decode-only operation
+				if (operation === 'decode') {
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					let decoded: any;
+					try {
+						decoded = jwt.decode(jwtToken, { complete: true });
+						if (!decoded) {
+							throw new NodeOperationError(
+								this.getNode(),
+								'Invalid JWT token format',
+								{ itemIndex },
+							);
+						}
+					} catch (error: unknown) {
+						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+						throw new NodeOperationError(
+							this.getNode(),
+							`Failed to decode JWT token: ${errorMessage}`,
+							{ itemIndex },
+						);
+					}
+
+					// Return decoded token without validation
+					const item = items[itemIndex];
+					returnData.push({
+						json: {
+							...item.json,
+							jwtHeader: decoded.header,
+							jwtPayload: decoded.payload,
+						},
+						pairedItem: itemIndex,
+					});
+					continue;
+				}
+
+				// Validate operation (existing logic)
 				const jwksConfig = this.getNodeParameter('jwksConfig', itemIndex) as string;
 				const options = this.getNodeParameter('options', itemIndex, {}) as {
 					issuer?: string;

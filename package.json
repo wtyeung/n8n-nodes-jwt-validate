@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-jwt-validate",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "n8n node for JWT token validation with JWKS support",
   "license": "MIT",
   "homepage": "https://github.com/wtyeung/n8n-nodes-jwt-validate#readme",
