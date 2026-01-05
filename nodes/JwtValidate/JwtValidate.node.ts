@@ -149,7 +149,8 @@ export class JwtValidate implements INodeType {
 
 		for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
 			try {
-				const operation = this.getNodeParameter('operation', itemIndex) as string;
+				// Default to 'validate' for backward compatibility with existing nodes
+				const operation = this.getNodeParameter('operation', itemIndex, 'validate') as string;
 				const jwtToken = this.getNodeParameter('jwtToken', itemIndex) as string;
 
 				// Decode-only operation

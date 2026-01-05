@@ -182,7 +182,7 @@ class JwtValidate {
         const returnData = [];
         for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
             try {
-                const operation = this.getNodeParameter('operation', itemIndex);
+                const operation = this.getNodeParameter('operation', itemIndex, 'validate');
                 const jwtToken = this.getNodeParameter('jwtToken', itemIndex);
                 if (operation === 'decode') {
                     let decoded;
