@@ -147,6 +147,7 @@ class JwtValidate {
         };
     }
     async execute() {
+        var _a;
         const items = this.getInputData();
         const returnData = [];
         for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
@@ -182,7 +183,22 @@ class JwtValidate {
                     if (!tokenIssuer) {
                         throw new n8n_workflow_1.NodeOperationError(this.getNode(), 'JWT token does not contain an issuer (iss) claim for auto-discovery', { itemIndex });
                     }
-                    jwksUrl = `${tokenIssuer.replace(/\/$/, '')}/discovery/keys`;
+                    const discoveryUrl = `${tokenIssuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
+                    try {
+                        const response = await this.helpers.request({
+                            method: 'GET',
+                            uri: discoveryUrl,
+                            json: true,
+                        });
+                        if (!response.jwks_uri) {
+                            throw new Error('Discovery document does not contain jwks_uri');
+                        }
+                        jwksUrl = response.jwks_uri;
+                    }
+                    catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                        throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Failed to fetch OpenID Discovery document from ${discoveryUrl}: ${errorMessage}`, { itemIndex });
+                    }
                 }
                 const client = (0, jwks_rsa_1.default)({
                     jwksUri: jwksUrl,
@@ -199,7 +215,7 @@ class JwtValidate {
                     signingKey = key.getPublicKey();
                 }
                 catch (error) {
-                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Failed to retrieve signing key from JWKS: ${error.message}`, { itemIndex });
+                    throw new n8n_workflow_1.NodeOperationError(this.getNode(), `Failed to retrieve signing key from JWKS: ${error.message}. JWKS URL: ${jwksUrl}, Key ID (kid): ${kid}`, { itemIndex });
                 }
                 const verifyOptions = {
                     ignoreExpiration: !checkExpiry,
@@ -230,6 +246,7 @@ class JwtValidate {
                             errorMessage = `JWT validation failed: ${error.message}`;
                         }
                     }
+                    errorMessage += `. JWKS URL: ${jwksUrl}, Key ID (kid): ${kid}`;
                     throw new n8n_workflow_1.NodeOperationError(this.getNode(), errorMessage, { itemIndex });
                 }
                 if (requiredScopes) {
@@ -273,11 +290,32 @@ class JwtValidate {
             }
             catch (error) {
                 if (this.continueOnFail()) {
+                    let kid = 'unknown';
+                    let jwksUrl = 'unknown';
+                    try {
+                        const jwtToken = this.getNodeParameter('jwtToken', itemIndex);
+                        const decoded = jwt.decode(jwtToken, { complete: true });
+                        if ((_a = decoded === null || decoded === void 0 ? void 0 : decoded.header) === null || _a === void 0 ? void 0 : _a.kid) {
+                            kid = decoded.header.kid;
+                        }
+                        const jwksConfig = this.getNodeParameter('jwksConfig', itemIndex);
+                        if (jwksConfig === 'customUrl') {
+                            jwksUrl = this.getNodeParameter('jwksUrl', itemIndex) || 'not provided';
+                        }
+                        else if ((decoded === null || decoded === void 0 ? void 0 : decoded.payload) && typeof decoded.payload === 'object' && 'iss' in decoded.payload && decoded.payload.iss) {
+                            const issuer = decoded.payload.iss;
+                            jwksUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
+                        }
+                    }
+                    catch {
+                    }
                     returnData.push({
                         json: {
                             ...items[itemIndex].json,
                             jwtValid: false,
                             error: error.message,
+                            jwksUrl,
+                            keyId: kid,
                         },
                         error,
                         pairedItem: itemIndex,

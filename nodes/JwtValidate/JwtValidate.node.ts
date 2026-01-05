@@ -169,7 +169,7 @@ export class JwtValidate implements INodeType {
 						);
 					}
 				} else {
-					// Auto-discover from issuer
+					// Auto-discover from issuer using OpenID Connect Discovery
 					const tokenIssuer = decoded.payload.iss;
 					if (!tokenIssuer) {
 						throw new NodeOperationError(
@@ -178,7 +178,29 @@ export class JwtValidate implements INodeType {
 							{ itemIndex },
 						);
 					}
-					jwksUrl = `${tokenIssuer.replace(/\/$/, '')}/discovery/keys`;
+
+					// Fetch OpenID Connect Discovery document
+					const discoveryUrl = `${tokenIssuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
+					try {
+						const response = await this.helpers.request({
+							method: 'GET',
+							uri: discoveryUrl,
+							json: true,
+						});
+
+						if (!response.jwks_uri) {
+							throw new Error('Discovery document does not contain jwks_uri');
+						}
+
+						jwksUrl = response.jwks_uri;
+					} catch (error: unknown) {
+						const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+						throw new NodeOperationError(
+							this.getNode(),
+							`Failed to fetch OpenID Discovery document from ${discoveryUrl}: ${errorMessage}`,
+							{ itemIndex },
+						);
+					}
 				}
 
 				// Get the signing key
@@ -204,7 +226,7 @@ export class JwtValidate implements INodeType {
 				} catch (error) {
 					throw new NodeOperationError(
 						this.getNode(),
-						`Failed to retrieve signing key from JWKS: ${error.message}`,
+						`Failed to retrieve signing key from JWKS: ${error.message}. JWKS URL: ${jwksUrl}, Key ID (kid): ${kid}`,
 						{ itemIndex },
 					);
 				}
@@ -244,6 +266,7 @@ export class JwtValidate implements INodeType {
 						}
 					}
 
+					errorMessage += `. JWKS URL: ${jwksUrl}, Key ID (kid): ${kid}`;
 					throw new NodeOperationError(this.getNode(), errorMessage, { itemIndex });
 				}
 
@@ -301,11 +324,33 @@ export class JwtValidate implements INodeType {
 				});
 			} catch (error) {
 				if (this.continueOnFail()) {
+					// Decode token to get kid for error response
+					let kid = 'unknown';
+					let jwksUrl = 'unknown';
+					try {
+						const jwtToken = this.getNodeParameter('jwtToken', itemIndex) as string;
+						const decoded = jwt.decode(jwtToken, { complete: true });
+						if (decoded?.header?.kid) {
+							kid = decoded.header.kid;
+						}
+						const jwksConfig = this.getNodeParameter('jwksConfig', itemIndex) as string;
+						if (jwksConfig === 'customUrl') {
+							jwksUrl = this.getNodeParameter('jwksUrl', itemIndex) as string || 'not provided';
+						} else if (decoded?.payload && typeof decoded.payload === 'object' && 'iss' in decoded.payload && decoded.payload.iss) {
+							const issuer = decoded.payload.iss as string;
+							jwksUrl = `${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`;
+						}
+					} catch {
+						// Ignore errors when extracting debug info
+					}
+
 					returnData.push({
 						json: {
 							...items[itemIndex].json,
 							jwtValid: false,
 							error: error.message,
+							jwksUrl,
+							keyId: kid,
 						},
 						error,
 						pairedItem: itemIndex,
